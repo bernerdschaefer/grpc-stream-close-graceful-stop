@@ -7,8 +7,9 @@ import (
 )
 
 type client struct {
-	conn   *grpc.ClientConn
-	stream Streamer_StreamClient
+	conn      *grpc.ClientConn
+	stream    Streamer_StreamClient
+	cancelCtx context.CancelFunc
 }
 
 func newClient(addr string) (*client, error) {
@@ -19,17 +20,19 @@ func newClient(addr string) (*client, error) {
 
 	sc := NewStreamerClient(conn)
 
-	stream, err := sc.Stream(context.Background(), &StreamRequest{})
+	ctx, cancel := context.WithCancel(context.Background())
+	stream, err := sc.Stream(ctx, &StreamRequest{})
 	if err != nil {
 		conn.Close()
 		return nil, err
 	}
 
-	return &client{conn, stream}, nil
+	return &client{conn, stream, cancel}, nil
 }
 
 // Close asynchronously shuts down the connection.
 func (c *client) Close() error {
+	c.cancelCtx()
 	c.conn.Close()
 	return nil
 }
